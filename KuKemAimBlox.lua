@@ -1,10 +1,3 @@
---[[
-    ═══════════════════════════════════════════════════
-    ✦ KuKemPremium ✦  Aimbot + ESP
-    Delta Executor · Mobile + PC
-    ═══════════════════════════════════════════════════
-]]
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -24,9 +17,13 @@ local CFG = {
         hp = true, dist = true, tracer = false, glow = true,
         maxDist = 1500, team = true, key = Enum.KeyCode.F,
     },
+    Hitbox = {
+        on = false, size = 15, team = true,
+        transparent = true, key = Enum.KeyCode.H,
+    },
 }
 
--- ═══════════ PALETTE VÀNG NEON ═══════════
+-- ═══════════ PALETTE ═══════════
 local P = {
     bg      = Color3.fromRGB(12, 10, 2),
     bg2     = Color3.fromRGB(20, 16, 4),
@@ -65,19 +62,18 @@ end
 
 -- ═══════════ GUI ═══════════
 local gui = Instance.new("ScreenGui")
-gui.Name = "KuKemPremium"
+gui.Name = "KuKemPremium Vn"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.IgnoreGuiInset = true
 pcall(function() gui.Parent = CoreGui end)
 if not gui.Parent then gui.Parent = LP:WaitForChild("PlayerGui") end
 
--- Float button
 local FloatBtn = Instance.new("TextButton")
 FloatBtn.Size = UDim2.new(0, 52, 0, 52)
 FloatBtn.Position = UDim2.new(0, 20, 0.5, -26)
 FloatBtn.BackgroundColor3 = P.panel
-FloatBtn.Text = "✦"
+FloatBtn.Text = "√"
 FloatBtn.TextColor3 = P.accent
 FloatBtn.TextSize = 26
 FloatBtn.Font = Enum.Font.GothamBlack
@@ -109,7 +105,6 @@ do
     end)
 end
 
--- Main
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 500, 0, 360)
 Main.Position = UDim2.new(0.5, -250, 0.5, -180)
@@ -143,7 +138,6 @@ do
     end)
 end
 
--- Header
 local Head = Instance.new("Frame")
 Head.Size = UDim2.new(1, 0, 0, 56)
 Head.BackgroundColor3 = P.panel
@@ -165,7 +159,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -100, 0, 26)
 Title.Position = UDim2.new(0, 16, 0, 8)
 Title.BackgroundTransparency = 1
-Title.Text = "✦ KuKemPremium ✦"
+Title.Text = " KuKemPremium "
 Title.TextColor3 = P.accent
 Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 20
@@ -177,7 +171,7 @@ local Sub = Instance.new("TextLabel")
 Sub.Size = UDim2.new(1, -100, 0, 18)
 Sub.Position = UDim2.new(0, 16, 0, 32)
 Sub.BackgroundTransparency = 1
-Sub.Text = "Aimbot · ESP"
+Sub.Text = "Aimbot · ESP · Hitbox"
 Sub.TextColor3 = P.dim
 Sub.Font = Enum.Font.Gotham
 Sub.TextSize = 11
@@ -200,7 +194,6 @@ CloseB.Parent = Head
 corner(CloseB, 8)
 CloseB.MouseButton1Click:Connect(function() Main.Visible = false end)
 
--- Tabs
 local TabBar = Instance.new("Frame")
 TabBar.Size = UDim2.new(1, -20, 0, 40)
 TabBar.Position = UDim2.new(0, 10, 0, 64)
@@ -263,7 +256,7 @@ local function addTab(name, label)
     local p = makePage()
     Pages[name] = p
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 130, 0, 32)
+    b.Size = UDim2.new(0, 105, 0, 32)
     b.BackgroundColor3 = P.panel
     b.Text = label
     b.TextColor3 = P.dim
@@ -278,7 +271,6 @@ local function addTab(name, label)
     return p
 end
 
--- Components
 local function section(parent, text)
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1, 0, 0, 26)
@@ -343,7 +335,7 @@ local function toggle(parent, label, default, cb)
 end
 
 local function slider(parent, label, mn, mx, def, suf, cb)
-    local f = Instance.new("Frame")
+        local f = Instance.new("Frame")
     f.Size = UDim2.new(1, 0, 0, 60)
     f.BackgroundColor3 = P.panel
     f.BorderSizePixel = 0
@@ -560,9 +552,84 @@ local function nearestInFov()
     return best
 end
 
+-- ═══════════ HITBOX EXPANDER ═══════════
+local hitboxModified = {}   -- plr -> {part -> original size}
+
+local function expandHitbox(plr)
+    if plr == LP or not plr.Character then return end
+    local size = CFG.Hitbox.size
+    local targets = {"HumanoidRootPart", "Head", "UpperTorso", "LowerTorso", "Torso"}
+
+    if not hitboxModified[plr] then
+        hitboxModified[plr] = {}
+    end
+
+    for _, name in ipairs(targets) do
+        local part = plr.Character:FindFirstChild(name)
+        if part and part:IsA("BasePart") then
+            if not hitboxModified[plr][part] then
+                hitboxModified[plr][part] = part.Size
+            end
+            if name == "HumanoidRootPart" then
+                part.Size = Vector3.new(size, size, size)
+            elseif name == "Head" then
+                part.Size = Vector3.new(size * 0.6, size * 0.6, size * 0.6)
+            else
+                part.Size = Vector3.new(size, size * 1.5, size * 0.7)
+            end
+            part.Transparency = CFG.Hitbox.transparent and 0.7 or part.Transparency
+            part.CanCollide = false
+            part.Massless = true
+        end
+    end
+end
+
+local function restoreHitbox(plr)
+    local saved = hitboxModified[plr]
+    if not saved then return end
+    for part, origSize in pairs(saved) do
+        if part and part.Parent then
+            pcall(function()
+                part.Size = origSize
+                part.Transparency = 0
+                part.CanCollide = true
+                part.Massless = false
+            end)
+        end
+    end
+    hitboxModified[plr] = nil
+end
+
+local function updateHitbox()
+    if not CFG.Hitbox.on then
+        for plr in pairs(hitboxModified) do
+            restoreHitbox(plr)
+        end
+        return
+    end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr == LP then continue end
+        if not plr.Character then continue end
+        if CFG.Hitbox.team and isTeammate(plr) then
+            restoreHitbox(plr)
+            continue
+        end
+        expandHitbox(plr)
+    end
+    -- Cleanup player đã rời
+    for plr in pairs(hitboxModified) do
+        if not plr.Parent or not plr.Character then
+            hitboxModified[plr] = nil
+        end
+    end
+end
+
+RunService.Heartbeat:Connect(updateHitbox)
+
 -- ═══════════ BUILD UI ═══════════
 local aimP = addTab("AIM", "🎯 AIMBOT")
 local espP = addTab("ESP", "👁️ ESP")
+local hbP = addTab("HITBOX", "🎯 HITBOX")
 local infoP = addTab("INFO", "ℹ️ INFO")
 
 section(aimP, "AIMBOT (CAMERA LOCK)")
@@ -586,16 +653,29 @@ toggle(espP, "Tracer", false, function(v) CFG.ESP.tracer = v end)
 toggle(espP, "Team Check", true, function(v) CFG.ESP.team = v end)
 slider(espP, "Max Distance", 100, 5000, 1500, "s", function(v) CFG.ESP.maxDist = v end)
 
+section(hbP, "HITBOX EXPANDER")
+toggle(hbP, "Bật Expand Hitbox", false, function(v) CFG.Hitbox.on = v end)
+toggle(hbP, "Team Check", true, function(v) CFG.Hitbox.team = v end)
+toggle(hbP, "Làm mờ hitbox (transparent)", true, function(v) CFG.Hitbox.transparent = v end)
+slider(hbP, "Kích thước", 5, 50, 15, " studs", function(v) CFG.Hitbox.size = v end)
+button(hbP, "Reset Hitbox ngay", function()
+    for plr in pairs(hitboxModified) do
+        restoreHitbox(plr)
+    end
+end)
+
 section(infoP, "THÔNG TIN")
 button(infoP, "Tắt toàn bộ", function()
     CFG.Aim.on = false
     CFG.ESP.on = false
+    CFG.Hitbox.on = false
+    for plr in pairs(hitboxModified) do restoreHitbox(plr) end
 end)
 button(infoP, "Ẩn menu (RightControl)", function() gui.Enabled = false end)
 
 switchTab("AIM")
 
--- ═══════════ CAMERA LOCK (AIMBOT) ═══════════
+-- ═══════════ CAMERA LOCK ═══════════
 RunService.RenderStepped:Connect(function(dt)
     if not CFG.Aim.on then return end
     local t = nearestInFov()
@@ -720,7 +800,8 @@ local function updateESP()
             d.hpFill.Color = P.espHPLow:Lerp(P.espHP, ratio)
             d.hpFill.Visible = true
         else
-            d.hpBg.Visible = false            d.hpFill.Visible = false
+            d.hpBg.Visible = false
+            d.hpFill.Visible = false
         end
 
         d.name.Text = plr.Name .. "  [" .. math.floor(p.hum.Health) .. "]"
@@ -746,7 +827,10 @@ RunService.RenderStepped:Connect(updateESP)
 
 for _, p in ipairs(Players:GetPlayers()) do makeESP(p) end
 Players.PlayerAdded:Connect(makeESP)
-Players.PlayerRemoving:Connect(dropESP)
+Players.PlayerRemoving:Connect(function(plr)
+    dropESP(plr)
+    restoreHitbox(plr)
+end)
 
 -- ═══════════ FOV CIRCLE ═══════════
 local fovCircle = nil
@@ -778,9 +862,11 @@ UIS.InputBegan:Connect(function(i, gpe)
         CFG.Aim.on = not CFG.Aim.on
     elseif i.KeyCode == CFG.ESP.key then
         CFG.ESP.on = not CFG.ESP.on
+    elseif i.KeyCode == CFG.Hitbox.key then
+        CFG.Hitbox.on = not CFG.Hitbox.on
     elseif i.KeyCode == Enum.KeyCode.RightControl then
         Main.Visible = not Main.Visible
     end
 end)
 
-print("[KuKemPremium] Loaded — Aimbot + ESP")
+print("[KuKemPremium] Loaded — Aimbot + ESP + Hitbox")
