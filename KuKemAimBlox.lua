@@ -12,34 +12,66 @@ local CFG = {
         fov = 200, maxRange = 500,
         part = "Head", smooth = 0.25, showFov = true,
         key = Enum.KeyCode.RightAlt,
+        onlyDamageable = true,
+        ignoreSafeZone = true,
     },
     ESP = {
         on = false, box = true, corner = true, name = true,
         hp = true, dist = true, tracer = false, glow = true,
         maxDist = 800, team = true, key = Enum.KeyCode.F,
         textSize = 12, boxThickness = 1, cornerThickness = 2,
+        colorMode = "Red", -- "Red" hoặc "Green"
     },
 }
 
--- ═══════════ PALETTE ═══════════
+-- ═══════════ PALETTE (MENU ĐỎ) ═══════════
 local P = {
-    bg      = Color3.fromRGB(10, 8, 16),
-    bg2     = Color3.fromRGB(16, 12, 26),
-    panel   = Color3.fromRGB(22, 18, 38),
-    hi      = Color3.fromRGB(34, 26, 56),
-    accent  = Color3.fromRGB(255, 200, 40),
-    accent2 = Color3.fromRGB(255, 150, 0),
-    txt     = Color3.fromRGB(255, 248, 220),
-    dim     = Color3.fromRGB(150, 140, 170),
-    off     = Color3.fromRGB(45, 38, 60),
-    espBox  = Color3.fromRGB(255, 200, 40),
-    espGlow = Color3.fromRGB(255, 150, 0),
-    espName = Color3.fromRGB(255, 220, 100),
+    bg      = Color3.fromRGB(15, 5, 5),    -- Nền đen pha đỏ
+    bg2     = Color3.fromRGB(25, 8, 8),    -- Nền gradient
+    panel   = Color3.fromRGB(35, 10, 10),  -- Panel đỏ đậm
+    hi      = Color3.fromRGB(60, 15, 15),  -- Highlight đỏ
+    accent  = Color3.fromRGB(255, 40, 40), -- ĐỎ NEON (màu chính)
+    accent2 = Color3.fromRGB(255, 100, 100),-- Đỏ nhạt hơn
+    txt     = Color3.fromRGB(255, 230, 230),-- Chữ trắng pha hồng
+    dim     = Color3.fromRGB(180, 120, 120),-- Chữ mờ
+    off     = Color3.fromRGB(50, 20, 20),   -- Trạng thái tắt
+    -- Màu ESP sẽ được ghi đè bởi hàm updateESPColors()
+    espBox  = Color3.fromRGB(255, 40, 40),
+    espGlow = Color3.fromRGB(255, 100, 100),
+    espName = Color3.fromRGB(255, 180, 180),
     espHP   = Color3.fromRGB(80, 255, 120),
     espHPLow= Color3.fromRGB(255, 80, 80),
-    espDist = Color3.fromRGB(200, 190, 220),
-    tracer  = Color3.fromRGB(255, 200, 40),
+    espDist = Color3.fromRGB(220, 180, 180),
+    tracer  = Color3.fromRGB(255, 40, 40),
 }
+
+-- ═══════════ HÀM ĐỔI MÀU ESP ═══════════
+local function updateESPColors()
+    if CFG.ESP.colorMode == "Red" then
+        P.espBox  = Color3.fromRGB(255, 40, 40)
+        P.espGlow = Color3.fromRGB(255, 100, 100)
+        P.espName = Color3.fromRGB(255, 180, 180)
+        P.espDist = Color3.fromRGB(220, 180, 180)
+        P.tracer  = Color3.fromRGB(255, 40, 40)
+    elseif CFG.ESP.colorMode == "Green" then
+        P.espBox  = Color3.fromRGB(40, 255, 40)
+        P.espGlow = Color3.fromRGB(100, 255, 100)
+        P.espName = Color3.fromRGB(180, 255, 180)
+        P.espDist = Color3.fromRGB(180, 220, 180)
+        P.tracer  = Color3.fromRGB(40, 255, 40)
+    end
+    -- Cập nhật màu cho tất cả ESP đang tồn tại
+    for _, d in pairs(espList or {}) do
+        if d.box then d.box.Color = P.espBox end
+        if d.boxGlow then d.boxGlow.Color = P.espGlow end
+        if d.name then d.name.Color = P.espName end
+        if d.dist then d.dist.Color = P.espDist end
+        if d.tracer then d.tracer.Color = P.tracer end
+        for _, k in ipairs({"tl", "tr", "bl", "br"}) do
+            if d[k] then d[k].Color = P.espBox end
+        end
+    end
+end
 
 local function corner(p, r)
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r or 8); c.Parent = p
@@ -421,7 +453,7 @@ local function dropdown(parent, label, options, def, cb)
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1, 0, 0, 38)
     f.BackgroundColor3 = P.panel
-    f.BorderSizePixel = 0
+        f.BorderSizePixel = 0
     f.ClipsDescendants = true
     f.Parent = parent
     corner(f, 9)
@@ -526,14 +558,57 @@ local function getMyPos()
     return myHrp and myHrp.Position
 end
 
+-- ═══════════ TÍNH NĂNG: SÁT THƯƠNG & VÙNG AN TOÀN ═══════════
+local function isDamageable(plr)
+    if not CFG.Aim.onlyDamageable then return true end
+    local char = plr.Character
+    if not char then return false end
+    if char:GetAttribute("Invincible") == true then return false end
+    if char:GetAttribute("GodMode") == true then return false end
+    if char:GetAttribute("Immortal") == true then return false end
+    if char:FindFirstChildOfClass("ForceField") then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        if hum:GetAttribute("Invincible") == true then return false end
+        if hum.Health <= 0 then return false end
+        if hum:FindFirstChild("Invincible") then return false end
+    end
+    return true
+end
+
+local function inSafeZone(plr)
+    if not CFG.Aim.ignoreSafeZone then return false end
+    local char = plr.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local pos = hrp.Position
+    local radius = 50
+    local parts = WS:GetPartBoundsInRadius(pos, radius)
+    for _, part in ipairs(parts) do
+        local name = string.lower(part.Name)
+        if string.find(name, "safezone") or string.find(name, "safe_zone") or 
+           string.find(name, "spawn") or string.find(name, "lobby") or
+           string.find(name, "protected") or string.find(name, "base") then
+            return true
+        end
+    end
+    if char:GetAttribute("InSafeZone") == true then return true end
+    if char:GetAttribute("SafeZone") == true then return true end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.WalkSpeed == 0 then return true end
+    return false
+end
+
 local function valid(plr)
     local p = getParts(plr)
     if not p then return false end
     if CFG.Aim.team and isTeammate(plr) then return false end
+    if not isDamageable(plr) then return false end
+    if inSafeZone(plr) then return false end
     return true
 end
 
--- Wall check: ray từ camera tới target, nếu có vật cản → không visible
 local function visible(part)
     if not CFG.Aim.wall then return true end
     local origin = Cam.CFrame.Position
@@ -545,7 +620,6 @@ local function visible(part)
     return result == nil
 end
 
--- Kiểm tra khoảng cách từ player đến target trong max range
 local function inRange(plr)
     local p = getParts(plr)
     if not p then return false end
@@ -558,7 +632,6 @@ local function nearestInFov()
     local best, bestScore = nil, CFG.Aim.fov
     local myPos = getMyPos()
     if not myPos then return nil end
-
     for _, plr in ipairs(Players:GetPlayers()) do
         if valid(plr) and inRange(plr) then
             local p = getParts(plr)
@@ -591,6 +664,12 @@ toggle(aimP, "Bật Aimbot", false, function(v) CFG.Aim.on = v end)
 toggle(aimP, "Team Check", true, function(v) CFG.Aim.team = v end)
 toggle(aimP, "Wall Check (không aim xuyên tường)", true, function(v) CFG.Aim.wall = v end)
 toggle(aimP, "Hiện FOV Circle", true, function(v) CFG.Aim.showFov = v end)
+
+section(aimP, "BẢO VỆ MỤC TIÊU")
+toggle(aimP, "Chỉ aim người nhận sát thương", true, function(v) CFG.Aim.onlyDamageable = v end)
+toggle(aimP, "Bỏ qua vùng an toàn", true, function(v) CFG.Aim.ignoreSafeZone = v end)
+
+section(aimP, "CẤU HÌNH AIM")
 slider(aimP, "FOV", 20, 600, 200, "px", function(v) CFG.Aim.fov = v end)
 slider(aimP, "Tầm aim (max range)", 50, 2000, 500, " studs", function(v) CFG.Aim.maxRange = v end)
 slider(aimP, "Smooth", 0.02, 1, 0.25, "", function(v) CFG.Aim.smooth = v end)
@@ -606,6 +685,14 @@ toggle(espP, "Máu", true, function(v) CFG.ESP.hp = v end)
 toggle(espP, "Khoảng cách", true, function(v) CFG.ESP.dist = v end)
 toggle(espP, "Tracer", false, function(v) CFG.ESP.tracer = v end)
 toggle(espP, "Team Check", true, function(v) CFG.ESP.team = v end)
+
+-- TÍNH NĂNG MỚI: CHỌN MÀU ESP
+section(espP, "MÀU SẮC")
+dropdown(espP, "Màu ESP", {"Red", "Green"}, "Red", function(v)
+    CFG.ESP.colorMode = v
+    updateESPColors()
+end)
+
 slider(espP, "Max Distance", 100, 3000, 800, " studs", function(v) CFG.ESP.maxDist = v end)
 slider(espP, "Cỡ chữ", 8, 20, 12, "px", function(v) CFG.ESP.textSize = v end)
 slider(espP, "Độ dày box", 1, 5, 1, "px", function(v) CFG.ESP.boxThickness = v end)
@@ -620,7 +707,7 @@ button(infoP, "Ẩn menu (RightControl)", function() gui.Enabled = false end)
 
 switchTab("AIM")
 
--- ═══════════ AIMBOT LOOP (CAMERA LOCK) ═══════════
+-- ═══════════ AIMBOT LOOP ═══════════
 RunService.RenderStepped:Connect(function(dt)
     if not CFG.Aim.on then return end
     local t = nearestInFov()
@@ -712,7 +799,6 @@ local function updateESP()
             continue
         end
 
-        -- Size box vừa phải, không che màn hình
         local h = math.abs(hp2.Y - sp.Y) * 1.2
         local w = h * 0.5
         local x, y = sp.X - w / 2, sp.Y - h / 2
@@ -726,7 +812,6 @@ local function updateESP()
         d.box.Thickness = CFG.ESP.boxThickness
         d.box.Visible = CFG.ESP.box
 
-        -- Khung 4 góc, không vẽ đường thẳng hai bên
         local cl = math.min(w, h) * 0.25
         d.tl.From = Vector2.new(x, y); d.tl.To = Vector2.new(x + cl, y)
         d.tr.From = Vector2.new(x + w, y); d.tr.To = Vector2.new(x + w - cl, y)
@@ -816,4 +901,4 @@ UIS.InputBegan:Connect(function(i, gpe)
     end
 end)
 
-print("[KuKemPremium] Loaded")
+print("[KuKemPremium] Loaded - Menu Đỏ, ESP Đỏ/Xanh lá")
